@@ -1,0 +1,9 @@
+mesh_file : 'meshes/remarked_mesh/mesh.xdmf'
+fname : "baseline"
+Tstop : 2         # end time (ms)
+f_input : 0.5     # strength of input current
+f_decay : 2.8e-9  # strength of decay current
+end_time : 100    # turn source term off after 100 ms
+start_time : 0.2  # turn source term off after 100 ms
+lambda_e : 1.6    # ECS tortuosity
+lambda_i : 3.4    # ICS tortuosity

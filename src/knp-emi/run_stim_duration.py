@@ -157,6 +157,11 @@ def solve_system(config):
     mesh, ct, ft = read_mesh(mesh_file)
     print(f'mesh read. ms{bcolors.ENDC}')
 
+    #print(np.unique(ft.values))
+    #exit(0)
+
+    # remark all facets tagged with neuronal membranes to exterior facets.
+
     # Read mesh and create sub-meshes for extra and intracellular domains and
     # for cellular membranes / interfaces (for solving ODEs)
 
@@ -168,52 +173,35 @@ def solve_system(config):
     ECS = {"name":"ECS",
            "tag":0,              # NB! ECS tag must always be zero.
     }
-    neuron = {"name":"neuron",
+    glial = {"name":"glial",
              "tag":1,
              "membrane_tags":[1],
-             "ode_models":{1:mm_hh},
-    }
-
-    glial = {"name":"glial",
-             "tag":2,
-             "membrane_tags":[2],
-             "ode_models":{2:mm_glial},
+             "ode_models":{1:mm_glial},
     }
 
     # Extract sub-meshes
     mesh_sub_0, sub_to_parent_0, sub_vertex_to_parent_0, _, _ = scifem.extract_submesh(mesh, ct, ECS['tag'])
-
-    mesh_sub_1, sub_to_parent_1, sub_vertex_to_parent_1, _, _ = scifem.extract_submesh(mesh, ct, neuron['tag'])
-    mesh_mem_1, mem_to_parent_1, mem_vertex_to_parent_1, _, _ = scifem.extract_submesh(mesh, ft, neuron['membrane_tags'])
-
-    mesh_sub_2, sub_to_parent_2, sub_vertex_to_parent_2, _, _ = scifem.extract_submesh(mesh, ct, glial['tag'])
-    mesh_mem_2, mem_to_parent_2, mem_vertex_to_parent_2, _, _ = scifem.extract_submesh(mesh, ft, glial['membrane_tags'])
+    mesh_sub_1, sub_to_parent_1, sub_vertex_to_parent_1, _, _ = scifem.extract_submesh(mesh, ct, glial['tag'])
+    mesh_mem_1, mem_to_parent_1, mem_vertex_to_parent_1, _, _ = scifem.extract_submesh(mesh, ft, glial['membrane_tags'])
 
     # Set sub meshes ECS domain
     ECS["mesh_sub"] = mesh_sub_0
     ECS["sub_to_parent"] = sub_to_parent_0
     ECS["sub_vertex_to_parent"] = sub_vertex_to_parent_0
 
-    # Set sub meshes neuron domain
-    neuron["mesh_sub"] = mesh_sub_1
-    neuron["sub_to_parent"] = sub_to_parent_1
-    neuron["sub_vertex_to_parent"] = sub_vertex_to_parent_1
-    neuron["mesh_mem"] = mesh_mem_1
-    neuron["mem_to_parent"] = mem_to_parent_1
+    # Set sub meshes glial domain
+    glial["mesh_sub"] = mesh_sub_1
+    glial["sub_to_parent"] = sub_to_parent_1
+    glial["sub_vertex_to_parent"] = sub_vertex_to_parent_1
+    glial["mesh_mem"] = mesh_mem_1
+    glial["mem_to_parent"] = mem_to_parent_1
 
-    # Set sub meshes neuron domain
-    glial["mesh_sub"] = mesh_sub_2
-    glial["sub_to_parent"] = sub_to_parent_2
-    glial["sub_vertex_to_parent"] = sub_vertex_to_parent_2
-    glial["mesh_mem"] = mesh_mem_2
-    glial["mem_to_parent"] = mem_to_parent_2
-
-    subdomain_list = {ECS['tag']:ECS, neuron['tag']:neuron, glial['tag']:glial}
+    subdomain_list = {ECS['tag']:ECS, glial['tag']:glial}
 
     # Time variables (PDEs)
     t = dolfinx.fem.Constant(mesh, 0.0)
 
-    dt = 0.1                         # global time step (ms)
+    dt = config["dt"]                # global time step (ms)
     Tstop = config["Tstop"]          # ms
     n_steps_ODE = 25                 # number of ODE steps
 
@@ -230,15 +218,12 @@ def solve_system(config):
 
     # Initial values
     K_e_init = 3.092970607490389
-    K_n_init = 124.13988964240784
     K_g_init = 99.3100014897692
 
     Na_e_init = 144.60625137617149
-    Na_n_init = 12.850454639128186
     Na_g_init = 15.775818906083778
 
     Cl_e_init = 133.62525154406637
-    Cl_n_init = 5.0
     Cl_g_init = 5.203660274163705
 
     lambda_i = config["lambda_i"]
@@ -247,13 +232,11 @@ def solve_system(config):
     # Set background charge / immobile ions
     rho_z = -1
     rho_e = Na_e_init + K_e_init - Cl_e_init
-    rho_n = Na_n_init + K_n_init - Cl_n_init
     rho_g = Na_g_init + K_g_init - Cl_g_init
 
     rho = {'z':rho_z,
-             0:dolfinx.fem.Constant(mesh_sub_0, rho_e),
-             1:dolfinx.fem.Constant(mesh_sub_1, rho_n),
-             2:dolfinx.fem.Constant(mesh_sub_2, rho_g),
+            0:dolfinx.fem.Constant(mesh_sub_0, rho_e),
+            1:dolfinx.fem.Constant(mesh_sub_1, rho_g),
     }
 
     # Set parameters
@@ -271,29 +254,23 @@ def solve_system(config):
     # diffusion coefficients for each sub-domain
     D_Na_sub = {0:dolfinx.fem.Constant(mesh_sub_0, D_Na/(lambda_e**2)),
                 1:dolfinx.fem.Constant(mesh_sub_1, D_Na/(lambda_i**2)),
-                2:dolfinx.fem.Constant(mesh_sub_2, D_Na/(lambda_i**2)),
     }
     D_K_sub = {0:dolfinx.fem.Constant(mesh_sub_0, D_K/(lambda_e**2)),
                1:dolfinx.fem.Constant(mesh_sub_1, D_K/(lambda_i**2)),
-               2:dolfinx.fem.Constant(mesh_sub_2, D_K/(lambda_i**2)),
     }
     D_Cl_sub = {0:dolfinx.fem.Constant(mesh_sub_0, D_Cl/(lambda_e**2)),
                 1:dolfinx.fem.Constant(mesh_sub_1, D_Cl/(lambda_i**2)),
-                2:dolfinx.fem.Constant(mesh_sub_2, D_Cl/(lambda_i**2)),
     }
 
     # initial concentrations for each sub-domain
     Na_init = {0:dolfinx.fem.Constant(mesh_sub_0, Na_e_init), \
-               1:dolfinx.fem.Constant(mesh_sub_1, Na_n_init),
-               2:dolfinx.fem.Constant(mesh_sub_2, Na_g_init),
+               1:dolfinx.fem.Constant(mesh_sub_1, Na_g_init),
     }
     K_init = {0:dolfinx.fem.Constant(mesh_sub_0, K_e_init), \
-              1:dolfinx.fem.Constant(mesh_sub_1, K_n_init),
-              2:dolfinx.fem.Constant(mesh_sub_2, K_g_init),
+              1:dolfinx.fem.Constant(mesh_sub_1, K_g_init),
     }
     Cl_init = {0:dolfinx.fem.Constant(mesh_sub_0, Cl_e_init), \
-               1:dolfinx.fem.Constant(mesh_sub_1, Cl_n_init),
-               2:dolfinx.fem.Constant(mesh_sub_2, Cl_g_init),
+               1:dolfinx.fem.Constant(mesh_sub_1, Cl_g_init),
     }
 
     # Create ions (channel conductivity is set below in the membrane model)
@@ -326,8 +303,8 @@ def solve_system(config):
     f_decay = config["f_decay"] * F * (c_prev[0][0] - K_init[0])
 
     # Frequency of source term (application of source term)
+    start_time = config["start_time"]   # turn source term on at time (ms)
     end_time = config["end_time"]       # turn source term off after end_time (ms)
-    start_time = config["start_time"]   # turn source term off after end_time (ms)
 
     f_condition = And(ge(t, start_time), le(t, end_time))
     f_source_K = conditional(f_condition, f_input, 0)  - f_decay
@@ -350,19 +327,12 @@ def solve_system(config):
                    'stimulus_locator':stimulus_locator}
 
     # setup membrane models for each cell
-    mem_models_neuron = setup_membrane_model(
-            stim_params, physical_parameters, neuron['ode_models'],
-            ft, phi_M_prev[neuron['tag']].function_space, ion_list
-    )
-
-    # setup membrane models for each cell
     mem_models_glial = setup_membrane_model(
             stim_params, physical_parameters, glial['ode_models'],
             ft, phi_M_prev[glial['tag']].function_space, ion_list
     )
 
     # Add membrane models to each cell in subdomain list
-    subdomain_list[neuron['tag']]['mem_models'] = mem_models_neuron
     subdomain_list[glial['tag']]['mem_models'] = mem_models_glial
 
     # Create variational form emi problem
@@ -379,20 +349,22 @@ def solve_system(config):
 
     # Specify entity maps for each sub-mesh to ensure correct assembly
     entity_maps = [sub_to_parent_0, \
-                   sub_to_parent_1, mem_to_parent_1,
-                   sub_to_parent_2, mem_to_parent_2]
+                   sub_to_parent_1, mem_to_parent_1]
 
     # Set solver parameters EMI (True is direct, and False is iterate) 
     direct_emi = False
     rtol_emi = 1E-6
     atol_emi = 1E-40
-    threshold_emi = 0.9
+    threshold_emi = 1.0
 
     # Set solver parameters KNP (True is direct, and False is iterate) 
     direct_knp = False
     rtol_knp = 1E-7
     atol_knp = 2E-40
     threshold_knp = 0.75
+
+    #direct_emi = True
+    #direct_knp = True
 
     # Create solver emi problem
     problem_emi = create_solver_emi(
@@ -411,6 +383,8 @@ def solve_system(config):
     # Crate dictionary for storing XDMF files and checkpoint filenames
     xdmf_sub = {}; xdmf_mem = {}
     fname_bp_sub = {}; fname_bp_mem = {}
+
+    save_frequency = config["save_frequency"]
 
     # Create files (XDMF and checkpoint) for saving results
     for tag, subdomain in subdomain_list.items():
@@ -450,13 +424,14 @@ def solve_system(config):
         # Update time
         t.value = float(t + dt)
 
-        # Write results to file
-        for tag, subdomain in subdomain_list.items():
-            # concentrations and potentials from previous time step to file
-            write_to_file_sub(xdmf_sub[tag], fname_bp_sub[tag], tag, phi, c, ion_list, t)
-            # membrane potential to file for all cellular subdomains (i.e. all subdomain but ECS)
-            if tag > 0:
-                write_to_file_mem(xdmf_mem[tag], fname_bp_mem[tag], tag, mesh, ct, ion_list, subdomain_list, phi_M_prev, c, t)
+        if (k % save_frequency) == 0:
+            # Write results to file
+            for tag, subdomain in subdomain_list.items():
+                # concentrations and potentials from previous time step to file
+                write_to_file_sub(xdmf_sub[tag], fname_bp_sub[tag], tag, phi, c, ion_list, t)
+                # membrane potential to file for all cellular subdomains (i.e. all subdomain but ECS)
+                if tag > 0:
+                    write_to_file_mem(xdmf_mem[tag], fname_bp_mem[tag], tag, mesh, ct, ion_list, subdomain_list, phi_M_prev, c, t)
 
     # Close XDMF files
     for tag, subdomain in subdomain_list.items():

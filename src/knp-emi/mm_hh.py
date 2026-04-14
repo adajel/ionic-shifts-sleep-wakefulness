@@ -170,13 +170,13 @@ def rhs_numba(t, states, values, parameters):
     beta_n = 0.125 * math.exp(-(states[3] + 65) / 80.0)
 
     # Expressions for the m gate component
-    values[0] = (1 - states[0])*alpha_m - states[0]*beta_m
+    values[0] = 0.0#(1 - states[0])*alpha_m - states[0]*beta_m
 
     # Expressions for the h gate component
-    values[1] = (1 - states[1])*alpha_h - states[1]*beta_h
+    values[1] = 0.0#(1 - states[1])*alpha_h - states[1]*beta_h
 
     # Expressions for the n gate component
-    values[2] = (1 - states[2])*alpha_n - states[2]*beta_n
+    values[2] = 0.0#(1 - states[2])*alpha_n - states[2]*beta_n
 
     # Expressions for the Membrane component
     i_Stim = stim_amplitude * np.exp(-np.mod(t, 30.0)/2.0)*(t < 125)
@@ -192,10 +192,10 @@ def rhs_numba(t, states, values, parameters):
           (states[3] - E_K) - 2 * i_pump
 
     # set I_ch_Na
-    parameters[15] = i_Na
+    parameters[15] = 0.0#i_Na
     # set I_ch_K
-    parameters[16] = i_K
+    parameters[16] = 0.0#i_K
     # set I_ch_Cl
     parameters[17] = 0.0
 
-    values[3] = (- i_K - i_Na) / Cm
+    values[3] = 0.0#(- i_K - i_Na) / Cm

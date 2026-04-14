@@ -23,7 +23,7 @@ mpl.rcParams['image.cmap'] = 'jet'
 
 comm = MPI.COMM_WORLD
 
-def get_time_series_sub(checkpoint_fname, point, tag, dt, Tstop):
+def get_time_series_sub(checkpoint_fname, point, tag, dt, Tstop, save_frequency):
 
     # Read mesh
     mesh_sub = adios4dolfinx.read_mesh(checkpoint_fname, MPI.COMM_WORLD)
@@ -41,26 +41,29 @@ def get_time_series_sub(checkpoint_fname, point, tag, dt, Tstop):
     Cls = []
     phis = []
 
+    k = 0
     t = dt
     while t <= Tstop:
-        print(f"Reading data, subdomain {tag}, t = {t:.2f}")
-        # Read results from file
-        adios4dolfinx.read_function(checkpoint_fname, K, time=t, name=f"c_K_{tag}")
-        adios4dolfinx.read_function(checkpoint_fname, Cl, time=t, name=f"c_Cl_{tag}")
-        adios4dolfinx.read_function(checkpoint_fname, Na, time=t, name=f"c_Na_{tag}")
-        adios4dolfinx.read_function(checkpoint_fname, phi, time=t, name=f"phi_{tag}")
+        if (k % save_frequency) == 0:
+            print(f"Reading data, subdomain {tag}, t = {t:.2f}")
+            # Read results from file
+            adios4dolfinx.read_function(checkpoint_fname, K, time=t, name=f"c_K_{tag}")
+            adios4dolfinx.read_function(checkpoint_fname, Cl, time=t, name=f"c_Cl_{tag}")
+            adios4dolfinx.read_function(checkpoint_fname, Na, time=t, name=f"c_Na_{tag}")
+            adios4dolfinx.read_function(checkpoint_fname, phi, time=t, name=f"phi_{tag}")
 
-        # Append (results) function evaluated in point to list
-        Ks.append(scifem.evaluate_function(K, point)[0][0])
-        Cls.append(scifem.evaluate_function(Cl, point)[0][0])
-        Nas.append(scifem.evaluate_function(Na, point)[0][0])
-        phis.append(scifem.evaluate_function(phi, point)[0][0])
+            # Append (results) function evaluated in point to list
+            Ks.append(scifem.evaluate_function(K, point)[0][0])
+            Cls.append(scifem.evaluate_function(Cl, point)[0][0])
+            Nas.append(scifem.evaluate_function(Na, point)[0][0])
+            phis.append(scifem.evaluate_function(phi, point)[0][0])
 
         t += dt
+        k += 1
 
     return Nas, Ks, Cls, phis
 
-def get_time_series_mem(checkpoint_fname, point, tag, dt, Tstop):
+def get_time_series_mem(checkpoint_fname, point, tag, dt, Tstop, save_frequency):
     # Read mesh
     mesh_mem = adios4dolfinx.read_mesh(checkpoint_fname, MPI.COMM_WORLD)
     # Create function space and function for storing data
@@ -83,43 +86,47 @@ def get_time_series_mem(checkpoint_fname, point, tag, dt, Tstop):
     tr_Na_es = []
     tr_Na_is = []
 
+    k = 0
     t = dt
     while t <= Tstop:
-        print(f"Reading data, membrane {tag}, t = {t:.2f}")
+        if (k % save_frequency) == 0:
+            print(f"Reading data, membrane {tag}, t = {t:.2f}")
 
-        # Membrane potential
-        adios4dolfinx.read_function(checkpoint_fname, phi_M, time=t, name=f"phi_M_{tag}")
-        phi_Ms.append(scifem.evaluate_function(phi_M, point)[0][0])
+            # Membrane potential
+            adios4dolfinx.read_function(checkpoint_fname, phi_M, time=t, name=f"phi_M_{tag}")
+            phi_Ms.append(scifem.evaluate_function(phi_M, point)[0][0])
 
-        # Trace of K from ICS
-        adios4dolfinx.read_function(checkpoint_fname, tr_Ki, time=t, name=f"c_K_{tag}")
-        tr_K_is.append(scifem.evaluate_function(tr_Ki, point)[0][0])
+            # Trace of K from ICS
+            adios4dolfinx.read_function(checkpoint_fname, tr_Ki, time=t, name=f"c_K_{tag}")
+            tr_K_is.append(scifem.evaluate_function(tr_Ki, point)[0][0])
 
-        # Trace of Cl from ICS
-        adios4dolfinx.read_function(checkpoint_fname, tr_Cli, time=t, name=f"c_Cl_{tag}")
-        tr_Cl_is.append(scifem.evaluate_function(tr_Cli, point)[0][0])
+            # Trace of Cl from ICS
+            adios4dolfinx.read_function(checkpoint_fname, tr_Cli, time=t, name=f"c_Cl_{tag}")
+            tr_Cl_is.append(scifem.evaluate_function(tr_Cli, point)[0][0])
 
-        # Trace of Na from ICS
-        adios4dolfinx.read_function(checkpoint_fname, tr_Nai, time=t, name=f"c_Na_{tag}")
-        tr_Na_is.append(scifem.evaluate_function(tr_Nai, point)[0][0])
+            # Trace of Na from ICS
+            adios4dolfinx.read_function(checkpoint_fname, tr_Nai, time=t, name=f"c_Na_{tag}")
+            tr_Na_is.append(scifem.evaluate_function(tr_Nai, point)[0][0])
 
-        # Trace of K from ECS
-        adios4dolfinx.read_function(checkpoint_fname, tr_Ke, time=t, name=f"c_K_{0}")
-        tr_K_es.append(scifem.evaluate_function(tr_Ke, point)[0][0])
+            # Trace of K from ECS
+            adios4dolfinx.read_function(checkpoint_fname, tr_Ke, time=t, name=f"c_K_{0}")
+            tr_K_es.append(scifem.evaluate_function(tr_Ke, point)[0][0])
 
-        # Trace of Cl from ECS
-        adios4dolfinx.read_function(checkpoint_fname, tr_Cle, time=t, name=f"c_Cl_{0}")
-        tr_Cl_es.append(scifem.evaluate_function(tr_Cle, point)[0][0])
+            # Trace of Cl from ECS
+            adios4dolfinx.read_function(checkpoint_fname, tr_Cle, time=t, name=f"c_Cl_{0}")
+            tr_Cl_es.append(scifem.evaluate_function(tr_Cle, point)[0][0])
 
-        # Trace of Na from ECS
-        adios4dolfinx.read_function(checkpoint_fname, tr_Nae, time=t, name=f"c_Na_{0}")
-        tr_Na_es.append(scifem.evaluate_function(tr_Nae, point)[0][0])
+            # Trace of Na from ECS
+            adios4dolfinx.read_function(checkpoint_fname, tr_Nae, time=t, name=f"c_Na_{0}")
+            tr_Na_es.append(scifem.evaluate_function(tr_Nae, point)[0][0])
 
         t += dt
+        k += 1
 
     return phi_Ms, tr_K_es, tr_K_is, tr_Na_es, tr_Na_is, tr_Cl_es, tr_Cl_is
 
-def plot_3D_concentration(fname_in, fname_out, dt, Tstop, x, tag):
+def plot_3D_concentration(fname_in, fname_out, dt, Tstop, x, tag, \
+        save_frequency, f_input, f_decay):
 
     temperature = 300e3 # temperature (K)
     F = 96485e3         # Faraday's constant (C/mol)
@@ -148,9 +155,9 @@ def plot_3D_concentration(fname_in, fname_out, dt, Tstop, x, tag):
     checkpoint_fname_M = f'results/{fname_in}/checkpoint_mem_{tag}.bp'
 
     # get timeseries in points
-    phi_M, tr_K_e, tr_K_i, tr_Na_e, tr_Na_i, tr_Cl_e, tr_Cl_i = get_time_series_mem(checkpoint_fname_M, point_M, tag, dt, Tstop)
-    Na_e, K_e, Cl_e, phi_e = get_time_series_sub(checkpoint_fname_e, point_e, 0, dt, Tstop)
-    Na_i, K_i, Cl_i, phi_i = get_time_series_sub(checkpoint_fname_i, point_i, tag, dt, Tstop)
+    phi_M, tr_K_e, tr_K_i, tr_Na_e, tr_Na_i, tr_Cl_e, tr_Cl_i = get_time_series_mem(checkpoint_fname_M, point_M, tag, dt, Tstop, save_frequency)
+    Na_e, K_e, Cl_e, phi_e = get_time_series_sub(checkpoint_fname_e, point_e, 0, dt, Tstop, save_frequency)
+    Na_i, K_i, Cl_i, phi_i = get_time_series_sub(checkpoint_fname_i, point_i, tag, dt, Tstop, save_frequency)
 
     temperature = 300e3; F = 96485e3; R = 8.314e3
     # Calculate Nernst potentials
@@ -179,6 +186,9 @@ def plot_3D_concentration(fname_in, fname_out, dt, Tstop, x, tag):
 
     # define and return current
     i_kir = g_leak_K * g_Kir * (np.array(phi_M) - E_K) # umol/(cm^2*ms)
+
+    i_input = f_input * np.full(len(phi_M), 1.0)
+    i_decay = f_decay * (np.array(K_e) - K_e_init)
 
     # Concentration plots
     fig = plt.figure(figsize=(12*0.9,12*0.9))
@@ -252,6 +262,16 @@ def plot_3D_concentration(fname_in, fname_out, dt, Tstop, x, tag):
         f_Na_i.write("%.10f \n" % p)
     f_Na_i.close()
 
+    f_Cl_e = open(f'results/{fname_in}/Cl_ECS_{fname_out}.txt', "w")
+    for p in Cl_e:
+        f_Cl_e.write("%.10f \n" % p)
+    f_Cl_e.close()
+
+    f_Cl_i = open(f'results/{fname_in}/Cl_ICS_{fname_out}.txt', "w")
+    for p in Cl_i:
+        f_Cl_i.write("%.10f \n" % p)
+    f_Cl_i.close()
+
     f_i_pump = open(f'results/{fname_in}/i_pump.txt', "w")
     for p in i_pump:
         f_i_pump.write("%.10f \n" % p)
@@ -261,6 +281,16 @@ def plot_3D_concentration(fname_in, fname_out, dt, Tstop, x, tag):
     for p in i_kir:
         f_i_kir.write("%.10f \n" % p)
     f_i_kir.close()
+
+    f_i_input = open(f'results/{fname_in}/i_input.txt', "w")
+    for p in i_input:
+        f_i_input.write("%.10f \n" % p)
+    f_i_input.close()
+
+    f_i_decay = open(f'results/{fname_in}/i_decay.txt', "w")
+    for p in i_decay:
+        f_i_decay.write("%.10f \n" % p)
+    f_i_decay.close()
 
     f_tr_K_e = open(f'results/{fname_in}/tr_K_e.txt', "w")
     for p in tr_K_e:
@@ -323,6 +353,9 @@ if __name__ == "__main__":
     # create figures
     dt = 0.1
     Tstop = config["Tstop"]
+    save_frequency = config["save_frequency"]
+    f_input = config["f_input"]
+    f_decay = config["f_decay"]
 
     # EMI points glial
     x_M = 0.00026834450833705247
@@ -339,7 +372,8 @@ if __name__ == "__main__":
            'e':[x_e, y_e, z_e],
     }
 
-    plot_3D_concentration(fname_in, fname_out_G, dt, Tstop, x_G, tag_G)
+    plot_3D_concentration(fname_in, fname_out_G, dt, Tstop, x_G, tag_G, \
+            save_frequency, f_input, f_decay)
 
     """
     # EMI points neuron

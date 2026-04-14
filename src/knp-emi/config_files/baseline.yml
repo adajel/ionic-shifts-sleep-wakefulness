@@ -1,9 +1,14 @@
-mesh_file : 'meshes/remarked_mesh/mesh.xdmf'
+#mesh_file : 'meshes/remarked_mesh_test/mesh.xdmf'
+mesh_file : 'meshes/ECS_astro/mesh.xdmf'
 fname : "baseline"
-Tstop : 2         # end time (ms)
-f_input : 0.5     # strength of input current
-f_decay : 2.8e-9  # strength of decay current
-end_time : 100    # turn source term off after 100 ms
-start_time : 0.2  # turn source term off after 100 ms
-lambda_e : 1.6    # ECS tortuosity
-lambda_i : 3.4    # ICS tortuosity
+Tstop : 5           # end time (ms)
+dt : 0.1            # time step (ms)
+f_input : 0         # strength of input current
+f_decay : 0         # strength of decay current
+#f_input : 20       # strength of input current
+#f_decay : 1.0e-7   # strength of decay current
+start_time : 0.2    # turn source term off after 100 ms
+end_time : 150      # turn source term off after 100 ms
+lambda_e : 1.2      # ECS tortuosity
+lambda_i : 2.55     # ICS tortuosity
+save_frequency : 2  # save results every 2nd timestep
